@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0 < 0.9.0;
 
+import "./SweetToken.sol";
+
 contract Vote {
 
-    address token;
+    SweetToken token;
     uint8 public interest = 10;
     uint public expiration = 30;
     uint public fullExpiration = 60 * 60 * 24 * 365;
@@ -26,7 +28,7 @@ contract Vote {
         _;
     }
 
-    constructor(address _token, string memory _hero1, string memory _hero2) {
+    constructor(SweetToken _token, string memory _hero1, string memory _hero2) {
         owners[msg.sender] = msg.sender;
 
         token = _token;
