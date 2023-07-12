@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.0 < 0.9.0;
+pragma solidity >=0.4.22 <0.9.0;
 
 import "./SweetToken.sol";
 
@@ -7,10 +7,16 @@ contract Vote {
 
     SweetToken token;
     uint8 public interest = 10;
-    uint public expiration = 30;
+//    uint public expiration = 30;
+    // really time
     uint public fullExpiration = 60 * 60 * 24 * 365;
     uint public partExpiration = 60 * 60 * 24 * 30;
+
 //    uint public expiration = 60 * 60 * 24 * 30;
+
+    //test time
+//    uint public fullExpiration = 60 * 5;
+//    uint public partExpiration = 60 * 1;
 
     mapping(address => address) owners;
     mapping(string => uint) heroes; // hero name => votes
@@ -91,7 +97,7 @@ contract Vote {
 
         uint amount = deposits[_holder][depositStart];
         uint interestAmount = amount * interest / 100;
-        uint totalAmount = amount + interestAmount - withdrawAmount[_holder][_depositID];
+//        uint totalAmount = amount + interestAmount - withdrawAmount[_holder][_depositID];
 
         _holder.transfer(amount);
         token.mint(_holder, interestAmount);
