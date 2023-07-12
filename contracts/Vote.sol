@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.4.22 <0.9.0;
+pragma solidity >=0.8.0 < 0.9.0;
 
 contract Vote {
 
@@ -17,6 +17,9 @@ contract Vote {
     mapping(address => uint256) public depositsCount; // address => id(counted++);
     mapping(address => mapping(uint256 => uint256)) public depositIDTimes; // address => [id(counted++) => block.timestamp]
     mapping(address => mapping(uint256 => string)) public depositFavorite; // address => [id(counted++) => hero]
+
+    mapping(address => mapping(uint256 => uint256)) public withdrawIDTimes; // address => [id(counted++) => block.timestamp]
+    mapping(address => mapping(uint256 => uint256)) public withdrawAmount; // address => [id(counted++) => amount]
 
     modifier onlyOwners() {
         require(owners[msg.sender] != address(0), 'Only owners can set new admin.');
@@ -49,18 +52,51 @@ contract Vote {
         heroes[_heroName] = heroes[_heroName] + msg.value;
     }
 
-    function withdraw(address payable _holder, uint256 _depositStart) public payable {
-        require(deposits[_holder][_depositStart] != 0, 'Deposit not found.');
-        require(block.timestamp - _depositStart >= expiration, 'Deposit is not expired.');
+    function withdraw(address payable _holder, uint _depositID) public payable {
         require(msg.sender == _holder, 'Only owner can withdraw.');
 
-        uint256 amount = deposits[_holder][_depositStart];
-        uint256 interestAmount = amount * interest / 100;
-        uint256 totalAmount = amount + interestAmount;
+        uint depositStart = depositIDTimes[_holder][_depositID];
+        require(depositStart != 0, 'Deposit not found.');
 
-        _holder.transfer(totalAmount);
+        uint time = block.timestamp;
+        uint depositTime = time - depositStart;
+        uint lastWithdrawTime = time - withdrawIDTimes[_holder][_depositID];
 
-        deposits[_holder][_depositStart] = 0;
+        require(lastWithdrawTime >= partExpiration || depositTime >= partExpiration, 'Can not withdraw yet.');
+
+        uint amount = deposits[_holder][depositStart];
+
+        uint interestAmount = amount * interest / 100;
+        uint interestPerSecond = interestAmount / fullExpiration;
+        uint withdrawInterest = interestPerSecond * lastWithdrawTime;
+
+        token.mint(_holder, withdrawInterest);
+
+        withdrawIDTimes[_holder][_depositID] = time;
+        withdrawAmount[_holder][_depositID] = withdrawAmount[_holder][_depositID] + withdrawInterest;
+    }
+
+    function withdrawAllDeposit(address payable _holder, uint _depositID) public payable {
+        require(msg.sender == _holder, 'Only owner can withdraw.');
+
+        uint depositStart = depositIDTimes[_holder][_depositID];
+        require(depositStart != 0, 'Deposit not found.');
+
+        uint time = block.timestamp;
+        uint depositTime = time - depositStart;
+
+        require(depositTime >= fullExpiration, 'Can not withdraw yet.');
+
+        uint amount = deposits[_holder][depositStart];
+        uint interestAmount = amount * interest / 100;
+        uint totalAmount = amount + interestAmount - withdrawAmount[_holder][_depositID];
+
+        _holder.transfer(amount);
+        token.mint(_holder, interestAmount);
+        deposits[_holder][depositStart] = 0;
+        withdrawAmount[_holder][_depositID] = 0;
+
+        heroes[depositFavorite[_holder][_depositID]] = heroes[depositFavorite[_holder][_depositID]] - amount;
     }
 
 }
