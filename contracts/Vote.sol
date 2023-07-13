@@ -19,7 +19,7 @@ contract Vote {
 //    uint public partExpiration = 60 * 1;
 
     mapping(address => address) owners;
-    mapping(string => uint) heroes; // hero name => votes
+    mapping(string => uint) public heroes; // hero name => votes
 
     mapping(address => mapping(uint256 => uint256)) public deposits; // address => [block.timestamp => msg.value]
     mapping(address => uint256) public depositsCount; // address => id(counted++);
@@ -105,6 +105,11 @@ contract Vote {
         withdrawAmount[_holder][_depositID] = 0;
 
         heroes[depositFavorite[_holder][_depositID]] = heroes[depositFavorite[_holder][_depositID]] - amount;
+    }
+
+    function checkOwner(address _address) public view onlyOwners returns (address) {
+        require(owners[_address] != address(0), 'This is not an owner.');
+        return owners[_address];
     }
 
 }
