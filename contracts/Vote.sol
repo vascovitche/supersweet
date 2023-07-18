@@ -7,23 +7,17 @@ import "./SweetToken.sol";
 contract Vote {
     using SafeMath for uint;
 
-    SweetToken token;
+    SweetToken public token;
     uint8 public interest = 10;
-//    uint public expiration = 30;
-    // really time
+
     uint public fullExpiration = 60 * 60 * 24 * 365;
     uint public partExpiration = 60 * 60 * 24 * 30;
 
-//    uint public expiration = 60 * 60 * 24 * 30;
-
-    //test time
-//    uint public fullExpiration = 60 * 5;
-//    uint public partExpiration = 60 * 1;
-
-    mapping(address => address) owners;
+    mapping(address => address) private owners;
     mapping(string => uint) public heroes; // hero name => votes
 
     struct Deposit {
+        uint id;
         uint amount;
         string hero;
         uint startAt;
@@ -38,14 +32,6 @@ contract Vote {
     }
 
     mapping(address => mapping(uint => Withdraw)) public withdraws;
-
-//    mapping(address => mapping(uint256 => uint256)) public deposits; // address => [block.timestamp => msg.value]
-//    mapping(address => uint256) public depositsCount; // address => id(counted++);
-//    mapping(address => mapping(uint256 => uint256)) public depositIDTimes; // address => [id(counted++) => block.timestamp]
-//    mapping(address => mapping(uint256 => string)) public depositFavorite; // address => [id(counted++) => hero]
-//
-//    mapping(address => mapping(uint256 => uint256)) public withdrawIDTimes; // address => [id(counted++) => block.timestamp]
-//    mapping(address => mapping(uint256 => uint256)) public withdrawAmount; // address => [id(counted++) => amount]
 
     event Staking(address indexed user, uint amount, string hero, uint startAt);
     event PartWithdraw(address indexed user, uint interest, uint time);
@@ -77,6 +63,7 @@ contract Vote {
         uint count = depositsCount[msg.sender].add(1);
 
         Deposit storage newDeposit = deposits[msg.sender][count];
+        newDeposit.id = count;
         newDeposit.amount = msg.value;
         newDeposit.hero = _hero;
         newDeposit.startAt = block.timestamp;
@@ -85,57 +72,62 @@ contract Vote {
 
         emit Staking(msg.sender, msg.value, _hero, block.timestamp);
 
-        heroes[_hero] = heroes[_hero] + msg.value;
+        heroes[_hero] = heroes[_hero].add(msg.value);
 
         emit HeroVotePlus(msg.sender, _hero, msg.value, block.timestamp);
     }
 
-    function getHolderDeposits(address _holder) public view returns(Deposit[] memory) {
+    function getHolderDeposits(address _holder) public view returns (Deposit[] memory) {
         uint depositCount = depositsCount[_holder];
 
         Deposit[] memory holderDeposits = new Deposit[](depositCount.add(1));
 
-        for (uint i = 0; i <= depositCount; i.add(1)) {
-            Deposit memory data  = deposits[_holder][i];
+        for (uint i = 1; i <= depositCount; i++) {
+            Deposit memory data = deposits[_holder][i];
             holderDeposits[i] = data;
         }
 
         return holderDeposits;
     }
 
-    function partWithdraw(address payable _holder, uint _depositID) public payable {
-        require(msg.sender == _holder, 'Only holder can withdraw.');
+    function partWithdraw(uint _depositID) public payable {
 
-        Deposit memory deposit = deposits[_holder][_depositID];
-        Withdraw memory withdraw = withdraws[_holder][_depositID];
+        Deposit memory deposit = deposits[msg.sender][_depositID];
+        Withdraw memory withdraw = withdraws[msg.sender][_depositID];
 
         require(deposit.amount != 0, 'Deposit not found.');
 
-        uint time = block.timestamp;
-        uint depositTime = time.sub(deposit.startAt);
-        uint lastWithdrawTime = time.sub(withdraw.time);
+        uint time = block.timestamp; // now
+        uint depositTime = time.sub(deposit.startAt); // now - deposit start time
+        uint lastWithdrawTime = time.sub(withdraw.time); // now - last withdraw time
 
-        require(lastWithdrawTime >= partExpiration || depositTime >= partExpiration, 'Can not withdraw yet.');
+        require(lastWithdrawTime >= partExpiration && depositTime >= partExpiration, 'Can not withdraw yet.');
 
         uint amount = deposit.amount;
 
         uint interestAmount = amount.mul(interest).div(100);
-        uint interestPerSecond = interestAmount.div(fullExpiration);
-        uint withdrawInterest = interestPerSecond.mul(lastWithdrawTime);
 
-        token.mint(_holder, withdrawInterest);
+        uint withdrawInterest;
+
+        if (lastWithdrawTime == time) {
+            withdrawInterest = interestAmount.mul(depositTime).div(fullExpiration);
+        } else {
+            withdrawInterest = interestAmount.mul(lastWithdrawTime).div(fullExpiration);
+        }
+
+        token.mint(msg.sender, withdrawInterest);
 
         withdraw.time = time;
         withdraw.totalAmount = withdraw.totalAmount.add(withdrawInterest);
+        withdraws[msg.sender][_depositID] = withdraw;
 
-        emit PartWithdraw(_holder, withdrawInterest, time);
+        emit PartWithdraw(msg.sender, withdrawInterest, time);
     }
 
-    function fullWithdraw(address payable _holder, uint _depositID) public payable {
-        require(msg.sender == _holder, 'Only holder can withdraw.');
+    function fullWithdraw(uint _depositID) public {
 
-        Deposit memory deposit = deposits[_holder][_depositID];
-        Withdraw memory withdraw = withdraws[_holder][_depositID];
+        Deposit memory deposit = deposits[msg.sender][_depositID];
+        Withdraw memory withdraw = withdraws[msg.sender][_depositID];
 
         require(deposit.amount != 0, 'Deposit not found.');
 
@@ -144,20 +136,23 @@ contract Vote {
 
         require(depositTime >= fullExpiration, 'Can not withdraw yet.');
 
+        uint withdrawAmount = withdraw.totalAmount;
+
         uint amount = deposit.amount;
-        uint interestAmount = amount.mul(interest).div(100);
+        uint interestAmount = amount.mul(interest).div(100).sub(withdrawAmount);
+        uint withdrawInterest = interestAmount.mul(depositTime).div(fullExpiration).sub(withdrawAmount);
 
-        _holder.transfer(amount);
-        token.mint(_holder, interestAmount);
+        payable(msg.sender).transfer(amount);
+        token.mint(msg.sender, withdrawInterest);
 
-        emit FullWithdraw(_holder, amount, interestAmount, time);
-
-        deposit = Deposit(0, '', 0);
-        withdraw = Withdraw(0, 0);
+        emit FullWithdraw(msg.sender, amount, withdrawInterest, time);
 
         heroes[deposit.hero] = heroes[deposit.hero].sub(amount);
 
-        emit HeroVoteMinus(_holder, deposit.hero, amount, time);
+        emit HeroVoteMinus(msg.sender, deposit.hero, amount, time);
+
+        deposit = Deposit(0, 0, '', 0);
+        withdraw = Withdraw(0, 0);
     }
 
     function checkOwner(address _address) public view onlyOwners returns (address) {

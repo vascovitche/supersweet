@@ -8,6 +8,7 @@ contract SweetToken is ERC20 {
 
   constructor() payable ERC20('Sweet Token', 'SWT') {
     minter = msg.sender;
+    _mint(msg.sender, 1000000000000000000000000000);
   }
 
   function mint(address _account, uint256 _amount) public {
