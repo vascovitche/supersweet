@@ -18,11 +18,4 @@ contract TestVote {
         Assert.equal(vote.heroes('bot'), startVotes, 'Second hero should be human. It must has to 100 votes');
     }
 
-//    function testDefaultOwner() public {
-//        SweetToken sweetToken = new SweetToken();
-//        Vote vote = new Vote(sweetToken, 'human', 'bot');
-//
-//        Assert.equal(vote.owners(msg.sender), msg.sender, 'Owner should be the deployer');
-//    }
-
 }
