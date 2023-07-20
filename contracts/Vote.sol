@@ -49,6 +49,7 @@ contract Vote {
         owners[msg.sender] = msg.sender;
 
         token = _token;
+        token.newMinter(address(this));
         heroes[_hero1] = 100;
         heroes[_hero2] = 100;
     }
@@ -57,24 +58,29 @@ contract Vote {
         owners[_owner] = _owner;
     }
 
-    function staking(string memory _hero) public payable {
+    function staking(string memory _hero, uint _amount) public payable {
         require(heroes[_hero] >= 100, 'Hero not found.');
+
+//        token.approve(msg.sender, address(this), _amount);
+        token.approve(address(this), _amount);
+        token.transferFrom(msg.sender, address(this), _amount);
+//        token.transferToDeposit(msg.sender, address(this), _amount);
 
         uint count = depositsCount[msg.sender].add(1);
 
         Deposit storage newDeposit = deposits[msg.sender][count];
         newDeposit.id = count;
-        newDeposit.amount = msg.value;
+        newDeposit.amount = _amount;
         newDeposit.hero = _hero;
         newDeposit.startAt = block.timestamp;
 
         depositsCount[msg.sender] = count;
 
-        emit Staking(msg.sender, msg.value, _hero, block.timestamp);
+        emit Staking(msg.sender, _amount, _hero, block.timestamp);
 
-        heroes[_hero] = heroes[_hero].add(msg.value);
+        heroes[_hero] = heroes[_hero].add(_amount);
 
-        emit HeroVotePlus(msg.sender, _hero, msg.value, block.timestamp);
+        emit HeroVotePlus(msg.sender, _hero, _amount, block.timestamp);
     }
 
     function getHolderDeposits(address _holder) public view returns (Deposit[] memory) {
@@ -115,7 +121,7 @@ contract Vote {
             withdrawInterest = interestAmount.mul(lastWithdrawTime).div(fullExpiration);
         }
 
-        token.mint(msg.sender, withdrawInterest);
+//        token.mint(msg.sender, withdrawInterest);
 
         withdraw.time = time;
         withdraw.totalAmount = withdraw.totalAmount.add(withdrawInterest);
@@ -143,7 +149,7 @@ contract Vote {
         uint withdrawInterest = interestAmount.mul(depositTime).div(fullExpiration).sub(withdrawAmount);
 
         payable(msg.sender).transfer(amount);
-        token.mint(msg.sender, withdrawInterest);
+//        token.mint(msg.sender, withdrawInterest);
 
         emit FullWithdraw(msg.sender, amount, withdrawInterest, time);
 
